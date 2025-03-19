@@ -1,0 +1,141 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isAdmin(orgId) {
+      return isSignedIn() && 
+        exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.role == 'admin';
+    }
+    
+    function isMember(orgId) {
+      return isSignedIn() && 
+        exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid));
+    }
+    
+    function hasPermission(orgId, module, action) {
+      let memberData = get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data;
+      return memberData.permissions[module][action] == true;
+    }
+    
+    function isTeacher(orgId) {
+      return isSignedIn() && 
+        exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.role == 'teacher';
+    }
+    
+    function isParent(orgId) {
+      return isSignedIn() && 
+        exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.role == 'parent';
+    }
+    
+    function isParentOfStudent(orgId, studentId) {
+      return isParent(orgId) && 
+        exists(/databases/$(database)/documents/organizations/$(orgId)/students/$(studentId)/guardians/$(request.auth.uid));
+    }
+    
+    // Base user profiles are readable by themselves and by members of the same organization
+    match /users/{userId} {
+      allow read: if isSignedIn() && (
+        request.auth.uid == userId || 
+        resource.data.organizations.hasAny(request.resource.data.organizations)
+      );
+      allow write: if isSignedIn() && request.auth.uid == userId;
+    }
+    
+    // Organization rules
+    match /organizations/{orgId} {
+      allow read: if isMember(orgId);
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin(orgId);
+      
+      // Members subcollection
+      match /members/{userId} {
+        allow read: if isMember(orgId);
+        allow write: if isAdmin(orgId);
+      }
+      
+      // Students subcollection
+      match /students/{studentId} {
+        allow read: if isMember(orgId) && (
+          hasPermission(orgId, 'students', 'view') || 
+          isParentOfStudent(orgId, studentId)
+        );
+        allow create: if isMember(orgId) && hasPermission(orgId, 'students', 'create');
+        allow update: if isMember(orgId) && hasPermission(orgId, 'students', 'edit');
+        allow delete: if isMember(orgId) && hasPermission(orgId, 'students', 'delete');
+        
+        // Student guardians
+        match /guardians/{guardianId} {
+          allow read: if isMember(orgId) && (
+            hasPermission(orgId, 'students', 'view') || 
+            request.auth.uid == guardianId
+          );
+          allow write: if isMember(orgId) && hasPermission(orgId, 'students', 'edit');
+        }
+      }
+      
+      // Staff subcollection
+      match /staff/{staffId} {
+        allow read: if isMember(orgId) && (
+          hasPermission(orgId, 'staff', 'view') || 
+          request.auth.uid == staffId
+        );
+        allow create: if isMember(orgId) && hasPermission(orgId, 'staff', 'create');
+        allow update: if isMember(orgId) && (
+          hasPermission(orgId, 'staff', 'edit') || 
+          (request.auth.uid == staffId && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['phoneNumber', 'emergencyContact']))
+        );
+        allow delete: if isMember(orgId) && hasPermission(orgId, 'staff', 'delete');
+      }
+      
+      // Classes subcollection
+      match /classes/{classId} {
+        allow read: if isMember(orgId);
+        allow create, update: if isMember(orgId) && (
+          hasPermission(orgId, 'curriculum', 'edit') || 
+          isAdmin(orgId)
+        );
+        allow delete: if isMember(orgId) && (
+          hasPermission(orgId, 'curriculum', 'delete') || 
+          isAdmin(orgId)
+        );
+        
+        // Class enrollments
+        match /enrollments/{enrollmentId} {
+          allow read: if isMember(orgId);
+          allow write: if isMember(orgId) && (
+            hasPermission(orgId, 'students', 'edit') || 
+            isAdmin(orgId)
+          );
+        }
+      }
+      
+      // Curriculum subcollection
+      match /curriculum/{curriculumId} {
+        allow read: if isMember(orgId) && hasPermission(orgId, 'curriculum', 'view');
+        allow create: if isMember(orgId) && hasPermission(orgId, 'curriculum', 'create');
+        allow update: if isMember(orgId) && (
+          hasPermission(orgId, 'curriculum', 'edit') || 
+          (isTeacher(orgId) && resource.data.createdBy == request.auth.uid)
+        );
+        allow delete: if isMember(orgId) && hasPermission(orgId, 'curriculum', 'delete');
+      }
+      
+      // Attendance subcollection
+      match /attendance/{date}/classes/{classId} {
+        allow read: if isMember(orgId) && (
+          hasPermission(orgId, 'attendance', 'view') || 
+          isParent(orgId)
+        );
+        allow create, update: if isMember(orgId) && hasPermission(orgId, 'attendance', 'edit');
+        allow delete: if isMember(orgId) && hasPermission(orgId, 'attendance', 'delete');
+      }
+    }
+  }
+} 

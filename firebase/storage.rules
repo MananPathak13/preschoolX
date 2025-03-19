@@ -1,0 +1,53 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOrganizationMember(orgId) {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid));
+    }
+    
+    function isOrganizationAdmin(orgId) {
+      return isAuthenticated() && 
+        get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.role == 'admin';
+    }
+    
+    function isValidFileType() {
+      return request.resource.contentType.matches('application/pdf') ||
+             request.resource.contentType.matches('application/msword') ||
+             request.resource.contentType.matches('application/vnd.openxmlformats-officedocument.wordprocessingml.document') ||
+             request.resource.contentType.matches('image/.*');
+    }
+    
+    function isValidFileSize() {
+      return request.resource.size < 10 * 1024 * 1024; // 10MB max
+    }
+
+    // Organization logos
+    match /organizations/{orgId}/logo {
+      allow read: if true;
+      allow write: if isOrganizationAdmin(orgId) && 
+                   isValidFileType() && 
+                   isValidFileSize();
+    }
+
+    // Student documents
+    match /organizations/{orgId}/students/{studentId}/{fileName} {
+      allow read: if isOrganizationMember(orgId);
+      allow create: if isOrganizationMember(orgId) && 
+                    isValidFileType() && 
+                    isValidFileSize();
+      allow delete: if isOrganizationAdmin(orgId);
+    }
+
+    // Default deny
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+} 

@@ -1,0 +1,84 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 0, 0, 0;
+  --background-start-rgb: 214, 219, 220;
+  --background-end-rgb: 255, 255, 255;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --foreground-rgb: 255, 255, 255;
+    --background-start-rgb: 0, 0, 0;
+    --background-end-rgb: 0, 0, 0;
+  }
+}
+
+@layer base {
+  :root {
+    --background: 43 41% 86%;
+    --foreground: 24 42% 21%;
+    --card: 0 0% 100%;
+    --card-foreground: 24 42% 21%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 24 42% 21%;
+    --primary: 24 42% 21%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 30 75% 50%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 43 41% 86%;
+    --muted-foreground: 24 10% 40%;
+    --accent: 60 80% 88%;
+    --accent-foreground: 24 42% 21%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 24 10% 80%;
+    --input: 24 10% 80%;
+    --ring: 24 42% 21%;
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 24 42% 10%;
+    --foreground: 43 41% 86%;
+    --card: 24 42% 15%;
+    --card-foreground: 43 41% 86%;
+    --popover: 24 42% 15%;
+    --popover-foreground: 43 41% 86%;
+    --primary: 43 41% 86%;
+    --primary-foreground: 24 42% 21%;
+    --secondary: 30 75% 40%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 24 42% 20%;
+    --muted-foreground: 43 41% 70%;
+    --accent: 60 40% 30%;
+    --accent-foreground: 43 41% 86%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 24 42% 30%;
+    --input: 24 42% 30%;
+    --ring: 43 41% 70%;
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}

@@ -1,0 +1,77 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isAdmin(orgId) {
+      return isSignedIn() && 
+        firestore.exists(/databases/(default)/documents/organizations/$(orgId)/members/$(request.auth.uid)) &&
+        firestore.get(/databases/(default)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.role == 'admin';
+    }
+    
+    function isMember(orgId) {
+      return isSignedIn() && 
+        firestore.exists(/databases/(default)/documents/organizations/$(orgId)/members/$(request.auth.uid));
+    }
+    
+    function hasPermission(orgId, module, action) {
+      let memberData = firestore.get(/databases/(default)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data;
+      return memberData.permissions[module][action] == true;
+    }
+    
+    function isImageType() {
+      return request.resource.contentType.matches('image/.*');
+    }
+    
+    function isPdfType() {
+      return request.resource.contentType.matches('application/pdf');
+    }
+    
+    function isDocumentType() {
+      return request.resource.contentType.matches('application/(msword|vnd.openxmlformats-officedocument.wordprocessingml.document|vnd.ms-excel|vnd.openxmlformats-officedocument.spreadsheetml.sheet|pdf)');
+    }
+    
+    function isReasonableSize() {
+      return request.resource.size < 10 * 1024 * 1024; // 10MB max
+    }
+    
+    // Organization logo/images
+    match /organizations/{orgId}/logo/{fileName} {
+      allow read: if isMember(orgId);
+      allow write: if isAdmin(orgId) && isImageType() && isReasonableSize();
+    }
+    
+    // User profile images
+    match /users/{userId}/profile/{fileName} {
+      allow read: if isSignedIn();
+      allow write: if request.auth.uid == userId && isImageType() && isReasonableSize();
+    }
+    
+    // Student photos
+    match /organizations/{orgId}/students/{studentId}/photos/{fileName} {
+      allow read: if isMember(orgId) && hasPermission(orgId, 'students', 'view');
+      allow write: if isMember(orgId) && hasPermission(orgId, 'students', 'edit') && isImageType() && isReasonableSize();
+    }
+    
+    // Staff documents
+    match /organizations/{orgId}/staff/{staffId}/documents/{fileName} {
+      allow read: if isMember(orgId) && (hasPermission(orgId, 'staff', 'view') || request.auth.uid == staffId);
+      allow write: if (isMember(orgId) && hasPermission(orgId, 'staff', 'edit')) || 
+                     (request.auth.uid == staffId && isDocumentType() && isReasonableSize());
+    }
+    
+    // Curriculum documents
+    match /organizations/{orgId}/curriculum/{curriculumId}/resources/{fileName} {
+      allow read: if isMember(orgId) && hasPermission(orgId, 'curriculum', 'view');
+      allow write: if isMember(orgId) && hasPermission(orgId, 'curriculum', 'edit') && isDocumentType() && isReasonableSize();
+    }
+    
+    // Default deny all other storage requests
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+} 
